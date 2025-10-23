@@ -13,6 +13,8 @@ jobs:
   ai-triage:
     if: github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'triage/needs-triage')
     runs-on: ubuntu-latest
+    outputs:
+      triage_result: ${{ steps.set-output.outputs.triage_result }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,6 +36,7 @@ jobs:
 
       - name: Post Assessment Summary
         if: always()
+        id: set-output
         uses: actions/github-script@v7
         env:
           ASSESSMENT_OUTPUT: ${{ steps.ai-assessment.outputs.ai_assessments }}
@@ -43,14 +46,150 @@ jobs:
             if (assessments.length > 0) {
               let summary = '## 🤖 AI Triage Assessment for OKD\n\n';
               summary += '**Project:** OKD - The Community Distribution of Kubernetes\n\n';
+              
+              let triageText = '';
               for (const assessment of assessments) {
                 summary += `### ${assessment.prompt}\n`;
                 summary += `**Label Applied:** \`${assessment.assessmentLabel}\`\n\n`;
                 summary += `**Assessment:**\n${assessment.response}\n\n`;
                 summary += '---\n\n';
+                
+                // Create simplified text for Slack
+                triageText += `*${assessment.assessmentLabel}*\n${assessment.response.substring(0, 300)}...\n\n`;
               }
+              
               summary += '\n*This assessment was generated using AI to help maintain issue quality in the OKD project.*\n';
               core.summary.addRaw(summary);
               await core.summary.write();
+              
+              // Set output for Slack notification
+              core.setOutput('triage_result', triageText.replace(/\n/g, '\\n'));
+            } else {
+              core.setOutput('triage_result', 'No triage assessment available');
             }
+
+  notify-slack:
+    if: github.event_name == 'issues' && always()
+    runs-on: ubuntu-latest
+    needs: [ai-triage]
+    steps:
+      - name: Generate AI Summary
+        id: summarize-issue
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4o-mini
+          prompt: |
+            Analyze this OKD (OpenShift Kubernetes Distribution) issue and provide a concise summary:
+            
+            Title: ${{ github.event.issue.title }}
+            Body: ${{ github.event.issue.body }}
+            
+            Please provide:
+            1. A brief summary of the issue (2-3 sentences)
+            2. Key technical points or concerns relevant to OKD/Kubernetes
+            3. Suggested priority level (low/medium/high)
+            
+            Keep the response under 150 words and focus on actionable insights for OKD maintainers.
+        continue-on-error: true
+
+      - name: Format Labels
+        id: format-labels
+        run: |
+          labels="${{ github.event.issue.labels.*.name }}"
+          if [ -n "$labels" ] && [ "$labels" != "null" ]; then
+            formatted_labels=$(echo "$labels" | tr ' ' ',' | sed 's/^,//' | sed 's/,$//')
+            echo "labels=$formatted_labels" >> $GITHUB_OUTPUT
+          else
+            echo "labels=None" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send to Slack
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TRIAGE_RESULT: ${{ needs.ai-triage.outputs.triage_result }}
+        run: |
+          # Escape quotes for JSON
+          TITLE=$(echo '${{ github.event.issue.title }}' | sed 's/"/\\"/g')
+          AI_SUMMARY=$(echo '${{ steps.summarize-issue.outputs.response }}' | sed 's/"/\\"/g' | tr '\n' ' ')
+          TRIAGE=$(echo "$TRIAGE_RESULT" | sed 's/"/\\"/g')
+          
+          # Create JSON payload with both triage and summary
+          cat > /tmp/slack_payload.json << EOF
+          {
+            "text": "🚨 *New OKD Issue Created*",
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "🚨 New OKD Issue #${{ github.event.issue.number }}"
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Title:*\n${TITLE}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Author:*\n${{ github.event.issue.user.login }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Labels:*\n${{ steps.format-labels.outputs.labels }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Repository:*\n${{ github.repository }}"
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "🔗 <${{ github.event.issue.html_url }}|View Issue on GitHub>"
+                }
+              },
+              {
+                "type": "divider"
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*🤖 AI Triage Assessment:*\n${TRIAGE}"
+                }
+              },
+              {
+                "type": "divider"
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*📝 AI Summary:*\n${AI_SUMMARY}"
+                }
+              }
+            ]
+          }
+          EOF
+          
+          # Send to Slack
+          curl -X POST \
+            -H 'Content-type: application/json' \
+            --data @/tmp/slack_payload.json \
+            "$SLACK_WEBHOOK_URL" || echo "Slack notification failed but continuing"
+        continue-on-error: true
+
+      - name: Notification Status
+        run: |
+          if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            echo "ℹ️ Slack webhook not configured. Set SLACK_WEBHOOK_URL secret to enable notifications."
+          else
+            echo "✅ Slack notification sent for issue #${{ github.event.issue.number }}"
+          fi
 
