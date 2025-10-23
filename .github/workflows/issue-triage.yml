@@ -2,7 +2,7 @@ name: "AI Issue Triage"
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [opened, reopened, edited, labeled]
 
 permissions:
   issues: write
