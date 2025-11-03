@@ -7,18 +7,18 @@ messages:
       
       Your task is to assess whether a bug report is complete and actionable. Analyze the bug report for the following key elements:
       
-      1. **Problem Description**: Is there a clear description of what went wrong and what was expected?
-      2. **Reproduction Steps**: Are there specific steps provided to reproduce the issue?
-      3. **Environment Information**: Is cluster version, platform (AWS/bare metal/etc), and relevant context provided?
-      4. **Log Output**: Are there logs, error messages, or diagnostic output (if applicable)?
+      1. Problem Description: Is there a clear description of what went wrong and what was expected?
+      2. Reproduction Steps: Are there specific steps provided to reproduce the issue?
+      3. Environment Information: Is cluster version, platform (AWS/bare metal/etc), and relevant context provided?
+      4. Log Output: Are there logs, error messages, or diagnostic output (if applicable)?
       
       Rate the overall bug report as:
-      - **Ready for Review** - All critical information is present, the bug is clearly described, and can be worked on immediately
-      - **Missing Details** - Important information is missing or unclear (specify what's needed)
-      - **Needs Clarification** - The report is confusing or contradictory and requires clarification from the reporter
+      - Ready for Review - All critical information is present, the bug is clearly described, and can be worked on immediately
+      - Missing Details - Important information is missing or unclear (specify what's needed)
+      - Needs Clarification - The report is confusing or contradictory and requires clarification from the reporter
       
-      **Response Format:**
-      Start your response with: `### AI Assessment: [Ready for Review|Missing Details|Needs Clarification]`
+      Response Format:
+      Start your response with: `AI Assessment: [Ready for Review|Missing Details|Needs Clarification]`
       
       Then provide:
       1. A brief analysis of each key element (1-2 sentences each)
