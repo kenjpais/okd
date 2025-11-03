@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   ai-triage:
-    if: github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'triage/needs-triage')
+    if: github.event_name == 'issues' && (contains(join(github.event.issue.labels.*.name, ','), 'triage/needs-triage') || github.event.label.name == 'triage/needs-triage')
     runs-on: ubuntu-latest
     outputs:
       triage_result: ${{ steps.set-output.outputs.triage_result }}
@@ -44,7 +44,7 @@ jobs:
           script: |
             const assessments = JSON.parse(process.env.ASSESSMENT_OUTPUT || '[]');
             if (assessments.length > 0) {
-              let summary = '## 🤖 AI Triage Assessment for OKD\n\n';
+              let summary = '## AI Triage Assessment for OKD\n\n';
               summary += '**Project:** OKD - The Community Distribution of Kubernetes\n\n';
               
               let triageText = '';
@@ -73,25 +73,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ai-triage]
     steps:
-      - name: Generate AI Summary
-        id: summarize-issue
-        uses: actions/ai-inference@v1
-        with:
-          model: gpt-4o-mini
-          prompt: |
-            Analyze this OKD (OpenShift Kubernetes Distribution) issue and provide a concise summary:
-            
-            Title: ${{ github.event.issue.title }}
-            Body: ${{ github.event.issue.body }}
-            
-            Please provide:
-            1. A brief summary of the issue (2-3 sentences)
-            2. Key technical points or concerns relevant to OKD/Kubernetes
-            3. Suggested priority level (low/medium/high)
-            
-            Keep the response under 150 words and focus on actionable insights for OKD maintainers.
-        continue-on-error: true
-
       - name: Format Labels
         id: format-labels
         run: |
@@ -111,19 +92,18 @@ jobs:
         run: |
           # Escape quotes for JSON
           TITLE=$(echo '${{ github.event.issue.title }}' | sed 's/"/\\"/g')
-          AI_SUMMARY=$(echo '${{ steps.summarize-issue.outputs.response }}' | sed 's/"/\\"/g' | tr '\n' ' ')
           TRIAGE=$(echo "$TRIAGE_RESULT" | sed 's/"/\\"/g')
           
-          # Create JSON payload with both triage and summary
+          # Create JSON payload
           cat > /tmp/slack_payload.json << EOF
           {
-            "text": "🚨 *New OKD Issue Created*",
+            "text": "*New OKD Issue Created*",
             "blocks": [
               {
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": "🚨 New OKD Issue #${{ github.event.issue.number }}"
+                  "text": "New OKD Issue #${{ github.event.issue.number }}"
                 }
               },
               {
@@ -151,7 +131,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "🔗 <${{ github.event.issue.html_url }}|View Issue on GitHub>"
+                  "text": "<${{ github.event.issue.html_url }}|View Issue on GitHub>"
                 }
               },
               {
@@ -161,17 +141,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*🤖 AI Triage Assessment:*\n${TRIAGE}"
-                }
-              },
-              {
-                "type": "divider"
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*📝 AI Summary:*\n${AI_SUMMARY}"
+                  "text": "*AI Triage Assessment:*\n${TRIAGE}"
                 }
               }
             ]
@@ -184,12 +154,4 @@ jobs:
             --data @/tmp/slack_payload.json \
             "$SLACK_WEBHOOK_URL" || echo "Slack notification failed but continuing"
         continue-on-error: true
-
-      - name: Notification Status
-        run: |
-          if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
-            echo "ℹ️ Slack webhook not configured. Set SLACK_WEBHOOK_URL secret to enable notifications."
-          else
-            echo "✅ Slack notification sent for issue #${{ github.event.issue.number }}"
-          fi
 
