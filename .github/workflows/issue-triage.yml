@@ -2,7 +2,7 @@ name: "AI Issue Triage"
 
 on:
   issues:
-    types: [opened, reopened, edited, labeled]
+    types: [opened, reopened, edited]
 
 # Prevent concurrent runs for the same issue to avoid duplicate comments
 # Queue new runs if one is already in progress
