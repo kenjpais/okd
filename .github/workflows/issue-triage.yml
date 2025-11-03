@@ -4,6 +4,12 @@ on:
   issues:
     types: [opened, reopened, edited, labeled]
 
+# Prevent concurrent runs for the same issue to avoid duplicate comments
+# Queue new runs if one is already in progress
+concurrency:
+  group: ai-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
 permissions:
   issues: write
   models: read
