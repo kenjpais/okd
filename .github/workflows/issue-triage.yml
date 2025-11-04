@@ -35,7 +35,7 @@ jobs:
           ai_review_label: 'kind/bug' 
           prompts_directory: './.github/prompts'
           labels_to_prompts_mapping: 'kind/bug,bug-triage.prompt.yml'
-          model: 'openai/gpt-4o-mini'
+          model: 'openai/gpt-4o'
           max_tokens: 300
 
       - name: Ensure kind/bug label persists
