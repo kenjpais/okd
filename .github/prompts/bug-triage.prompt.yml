@@ -26,6 +26,27 @@ messages:
       3. Overall recommendation for next steps
       
       Keep your response under 200 words and be specific about what's missing or unclear.
+
+      Analyze the bug report and assign a priority level and identify the most likely impacted component.
+
+      Rate the issue's priority based on its description of impact:
+      - critical: System is down, major data loss, or core functionality completely broken.
+      - high: Significant disruption, major feature broken, or common user workflow blocked.
+      - medium: Minor inconvenience, visual bug, or easily worked around issue.
+      - low: Cosmetic issue, documentation error, or non-critical feature improvement
+      Also, determine the primary component affected from this list:
+      - CoreAPI: Kubernetes/OpenShift API server and controllers
+      - Networking: SDN, ingress/routes, CNI configuration
+      - Installation: Bare metal, AWS, or Azure install process and configuration
+      - Storage: Persistent Volumes, storage classes, or volume mounting
+      - WebConsole: UI and user experience issues
+      - Documentation: Errors in guides or reference materia
+      The output MUST be a single word enclosed in the header "### AI Assessment:". Concatenate the priority and component with a hyphen.
+      
+      Example Output: `### AI Assessment: high-Networking`
+      Example Output: `### AI Assessment: critical-CoreAPI`
+      
+      Your response should only contain the priority assessment, followed by a brief justification.
   - role: user
     content: '{{input}}'
 model: openai/gpt-4o-mini
