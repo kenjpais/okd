@@ -15,33 +15,46 @@ permissions:
   contents: read
 
 jobs:
-  add-label:
-    # Only run when issue is opened, reopened, or edited (not when label is added)
-    if: github.event_name == 'issues' && github.event.action != 'labeled'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Add triage label
-        uses: actions/github-script@v7
-        with:
-          script: |
-            // Add the trigger label - this will cause the 'labeled' event to fire
-            // which will trigger the ai-triage job to run
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.issue.number,
-              labels: ['triage/needs-triage']
-            });
-
   ai-triage:
-    # Only run when the triage/needs-triage label is added
-    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'triage/needs-triage'
+    # Run when issue is opened, reopened, edited, or when triage/needs-triage label is added
+    if: |
+      (github.event_name == 'issues' && github.event.action != 'labeled') ||
+      (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'triage/needs-triage')
     runs-on: ubuntu-latest
     outputs:
       triage_result: ${{ steps.set-output.outputs.triage_result }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Ensure triage label exists
+        if: github.event.action != 'labeled'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Add the trigger label if it doesn't already exist
+            // This ensures the label is present before the AI assessment runs
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              labels: ['triage/needs-triage']
+            });
+            
+            // Wait a moment for GitHub API to propagate
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Verify the label is present
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+            });
+            
+            const labels = issue.labels.map(l => l.name);
+            if (!labels.includes('triage/needs-triage')) {
+              throw new Error('triage/needs-triage label was not found after adding it');
+            }
 
       - name: AI Issue Assessment
         id: ai-assessment
@@ -99,7 +112,7 @@ jobs:
             }
 
   notify-slack:
-    if: always() && github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'triage/needs-triage'
+    if: always() && github.event_name == 'issues'
     runs-on: ubuntu-latest
     needs: [ai-triage]
     steps:
