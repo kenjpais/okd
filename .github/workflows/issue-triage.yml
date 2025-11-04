@@ -3,7 +3,7 @@ run-name: "AI Triage for Issue #${{ github.event.issue.number }}"
 
 on:
   issues:
-    types: [opened, reopened, edited, labeled]
+    types: [opened, reopened, edited]
 
 concurrency:
   group: ai-triage-${{ github.event.issue.number }}
@@ -16,8 +16,6 @@ permissions:
 
 jobs:
   ai-triage:
-    # Always run for issue events - skip logic handled in steps
-    if: github.event_name == 'issues'
     runs-on: ubuntu-latest
     outputs:
       triage_result: ${{ steps.set-output.outputs.triage_result }}
@@ -26,57 +24,50 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Ensure triage label exists
-        if: github.event.action != 'labeled' || (github.event.action == 'labeled' && (github.event.label == null || github.event.label.name != 'triage/needs-triage'))
         uses: actions/github-script@v7
         with:
           script: |
-            // Skip if this is a labeled event with the wrong label
-            if (context.payload.action === 'labeled' && context.payload.label && context.payload.label.name !== 'triage/needs-triage') {
-              core.info('Skipping - labeled event with different label');
-              process.exit(0);
-            }
+            const issueNumber = context.payload.issue.number;
+            
+            // Check if label already exists
+            const { data: currentIssue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+            });
+            
+            const currentLabels = currentIssue.labels.map(l => l.name);
             
             // Add the trigger label if it doesn't already exist
-            // This ensures the label is present before the AI assessment runs
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.issue.number,
-              labels: ['triage/needs-triage']
-            });
-            
-            // Wait a moment for GitHub API to propagate
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            // Verify the label is present
-            const { data: issue } = await github.rest.issues.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.issue.number,
-            });
-            
-            const labels = issue.labels.map(l => l.name);
-            if (!labels.includes('triage/needs-triage')) {
-              throw new Error('triage/needs-triage label was not found after adding it');
+            if (!currentLabels.includes('triage/needs-triage')) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: ['triage/needs-triage']
+              });
+              
+              // Wait a moment for GitHub API to propagate
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              // Verify the label is present
+              const { data: verifiedIssue } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+              });
+              
+              const verifiedLabels = verifiedIssue.labels.map(l => l.name);
+              if (!verifiedLabels.includes('triage/needs-triage')) {
+                throw new Error('triage/needs-triage label was not found after adding it');
+              }
+              
+              core.info('Label added and verified');
+            } else {
+              core.info('Label already exists, proceeding');
             }
 
-      - name: Check if we should run AI assessment
-        id: check-run
-        run: |
-          if [ "${{ github.event.action }}" = "labeled" ]; then
-            LABEL_NAME="${{ github.event.label.name }}"
-            if [ -z "$LABEL_NAME" ] || [ "$LABEL_NAME" != "triage/needs-triage" ]; then
-              echo "should_run=false" >> $GITHUB_OUTPUT
-              echo "Skipping AI assessment - wrong label or no label"
-            else
-              echo "should_run=true" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "should_run=true" >> $GITHUB_OUTPUT
-          fi
-
       - name: AI Issue Assessment
-        if: steps.check-run.outputs.should_run == 'true'
         id: ai-assessment
         uses: github/ai-assessment-comment-labeler@v1.0.1
         with:
