@@ -16,9 +16,14 @@ messages:
       - Ready for Review - All critical information is present, the bug is clearly described, and can be worked on immediately
       - Missing Details - Important information is missing or unclear (specify what's needed)
       - Needs Clarification - The report is confusing or contradictory and requires clarification from the reporter
+      The priority and component output MUST be a single word enclosed in the header "### AI Assessment:". Concatenate the priority and component with a hyphen.
+      
+      Example Output: `### AI Assessment: high-Networking`
+      Example Output: `### AI Assessment: critical-CoreAPI`
       
       Response Format:
-      Start your response with: `AI Assessment: [Ready for Review|Missing Details|Needs Clarification]`
+      Start your response with: `AI Assessment: [Priority]-[Component] [Ready for Review|Missing Details|Needs Clarification]`  
+      (For example: `AI Assessment: high-Networking Ready for Review` or `AI Assessment: critical-CoreAPI Missing Details`)
       
       Then provide:
       1. A brief analysis of each key element (1-2 sentences each)
@@ -26,9 +31,7 @@ messages:
       3. Overall recommendation for next steps
       
       Keep your response under 200 words and be specific about what's missing or unclear.
-
-      Analyze the bug report and assign a priority level and identify the most likely impacted component.
-
+      
       Rate the issue's priority based on its description of impact:
       - critical: System is down, major data loss, or core functionality completely broken.
       - high: Significant disruption, major feature broken, or common user workflow blocked.
@@ -40,13 +43,7 @@ messages:
       - Installation: Bare metal, AWS, or Azure install process and configuration
       - Storage: Persistent Volumes, storage classes, or volume mounting
       - WebConsole: UI and user experience issues
-      - Documentation: Errors in guides or reference materia
-      The output MUST be a single word enclosed in the header "### AI Assessment:". Concatenate the priority and component with a hyphen.
-      
-      Example Output: `### AI Assessment: high-Networking`
-      Example Output: `### AI Assessment: critical-CoreAPI`
-      
-      Your response should only contain the priority assessment, followed by a brief justification.
+      - Documentation: Errors in guides or reference material
   - role: user
     content: '{{input}}'
 model: openai/gpt-4o-mini
