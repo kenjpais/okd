@@ -23,6 +23,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # --- NEW STEP TO ENSURE THE TRIGGER LABEL IS PRESENT ---
+      - name: Add AI Triage Trigger Label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const triggerLabel = 'triage/needs-triage';
+            core.info(`Ensuring label '${triggerLabel}' is present before assessment.`);
+            
+            // This API call adds the trigger label to the issue immediately.
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [triggerLabel]
+            });
+            
+            core.info(`Label '${triggerLabel}' added successfully.`);
+
       - name: AI Issue Assessment
         id: ai-assessment
         uses: github/ai-assessment-comment-labeler@v1.0.1
@@ -123,4 +141,3 @@ jobs:
               body: JSON.stringify(payload)
             }).catch(err => core.warning(`Slack notification failed: ${err.message}`));
         continue-on-error: true
-
