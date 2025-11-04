@@ -23,9 +23,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # The AI action will now run because the workflow was explicitly
-      # triggered by the presence of the 'triage/needs-triage' label.
+        
       - name: AI Issue Assessment
         id: ai-assessment
         uses: github/ai-assessment-comment-labeler@v1.0.1
@@ -40,6 +38,48 @@ jobs:
           labels_to_prompts_mapping: 'kind/bug,bug-triage.prompt.yml'
           model: 'openai/gpt-4o-mini'
           max_tokens: 300
+
+      - name: Ensure kind/bug label persists
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.payload.issue.number;
+            const labelToPreserve = 'kind/bug';
+            
+            // Check if the workflow was triggered by kind/bug label
+            const triggerLabel = context.payload.label?.name;
+            const wasTriggeredByTargetLabel = triggerLabel === labelToPreserve;
+            
+            // Get current issue labels to check if kind/bug is present
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+            });
+            
+            const currentLabels = issue.labels.map(l => l.name);
+            
+            // Only preserve kind/bug if:
+            // 1. The workflow was triggered by kind/bug label, OR
+            // 2. kind/bug was already present on the issue (from event payload)
+            const wasPresentInitially = context.payload.issue?.labels?.some(
+              l => l.name === labelToPreserve
+            ) || false;
+            
+            if ((wasTriggeredByTargetLabel || wasPresentInitially) && !currentLabels.includes(labelToPreserve)) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                labels: [labelToPreserve],
+              });
+              core.info(`Re-added ${labelToPreserve} label to issue #${issueNumber} (was removed by AI action)`);
+            } else if (currentLabels.includes(labelToPreserve)) {
+              core.info(`${labelToPreserve} label already present on issue #${issueNumber}`);
+            } else {
+              core.info(`${labelToPreserve} label not present and not required for this issue`);
+            }
 
       - name: Post Assessment Summary
         id: set-output
