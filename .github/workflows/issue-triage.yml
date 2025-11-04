@@ -102,7 +102,7 @@ jobs:
             
             for (const assessment of assessments) {
               summary += `### ${assessment.prompt}\n**Label Applied:** \`${assessment.assessmentLabel}\`\n\n**Assessment:**\n${assessment.response}\n\n---\n\n`;
-              triageText += `*${assessment.assessmentLabel}*\n${assessment.response.substring(0, 300)}...\n\n`;
+              triageText += `*${assessment.assessmentLabel}*\n${assessment.response}\n\n`;
             }
             
             summary += '\n*This assessment was generated using AI to help maintain issue quality in the OKD project.*\n';
