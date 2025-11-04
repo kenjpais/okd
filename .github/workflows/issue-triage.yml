@@ -88,6 +88,10 @@ jobs:
               throw new Error('triage/needs-triage label was not found after verification attempts');
             }
 
+      - name: Wait for label propagation
+        if: steps.ensure-label.outcome == 'success' && steps.ensure-label.outputs.label_verified == 'true'
+        run: sleep 3
+
       - name: AI Issue Assessment
         id: ai-assessment
         if: steps.ensure-label.outcome == 'success' && steps.ensure-label.outputs.label_verified == 'true'
