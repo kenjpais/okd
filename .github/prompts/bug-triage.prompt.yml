@@ -46,7 +46,7 @@ messages:
       - Documentation: Errors in guides or reference material
   - role: user
     content: '{{input}}'
-model: openai/gpt-4o-mini
+model: openai/gpt-4o
 modelParameters:
   max_tokens: 300
 testData: []
