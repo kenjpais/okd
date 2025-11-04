@@ -3,7 +3,8 @@ run-name: "AI Triage for Issue #${{ github.event.issue.number }}"
 
 on:
   issues:
-    types: [opened, reopened, edited]
+    # Trigger ONLY when an issue has been labeled
+    types: [labeled]
 
 concurrency:
   group: ai-triage-${{ github.event.issue.number }}
@@ -16,6 +17,8 @@ permissions:
 
 jobs:
   ai-triage:
+    # Run only if the specific trigger label was added
+    if: github.event.label.name == 'triage/needs-triage'
     runs-on: ubuntu-latest
     outputs:
       triage_result: ${{ steps.set-output.outputs.triage_result }}
@@ -23,27 +26,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. Add the trigger label to the issue via API
-      - name: Add AI Triage Trigger Label
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const triggerLabel = 'triage/needs-triage';
-            core.info(`Ensuring label '${triggerLabel}' is present before assessment.`);
-            
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              labels: [triggerLabel]
-            });
-            
-            core.info(`Label '${triggerLabel}' added successfully.`);
-
-      # 2. WAIT STEP: Allow GitHub's systems to register the label change before proceeding
-      - name: Wait for GitHub API Consistency
-        run: sleep 15
-
+      # The AI action will now run because the workflow was explicitly
+      # triggered by the presence of the 'triage/needs-triage' label.
       - name: AI Issue Assessment
         id: ai-assessment
         uses: github/ai-assessment-comment-labeler@v1.0.1
