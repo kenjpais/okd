@@ -24,57 +24,47 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Ensure triage label exists
+      - name: Add triage label
         uses: actions/github-script@v7
         with:
           script: |
             const issueNumber = context.payload.issue.number;
             
-            // Fetch current issue state to get latest labels
-            const { data: currentIssue } = await github.rest.issues.get({
+            // The AI assessment action requires the 'triage/needs-triage' label to process issues
+            // This is idempotent - safe to add even if already present
+            await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
+              labels: ['triage/needs-triage']
             });
             
-            const currentLabels = currentIssue.labels.map(l => l.name);
-            
-            // Always ensure triage/needs-triage label exists (idempotent operation)
-            // This ensures the AI assessment can run for opened, edited, and reopened issues
-            if (!currentLabels.includes('triage/needs-triage')) {
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issueNumber,
-                labels: ['triage/needs-triage']
-              });
-            }
-            
-            // Verify the label is present by fetching the issue again
-            // This ensures GitHub API has propagated the label before the next step
-            let retries = 3;
+            // Wait and verify the label is present (GitHub API may need a moment to propagate)
+            let retries = 5;
             let labelFound = false;
             
             while (retries > 0 && !labelFound) {
-              const { data: verifiedIssue } = await github.rest.issues.get({
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              const { data: issue } = await github.rest.issues.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issueNumber,
               });
               
-              const verifiedLabels = verifiedIssue.labels.map(l => l.name);
-              if (verifiedLabels.includes('triage/needs-triage')) {
+              const labels = issue.labels.map(l => l.name);
+              if (labels.includes('triage/needs-triage')) {
                 labelFound = true;
+                core.info('triage/needs-triage label confirmed present');
                 break;
               }
               
-              // Wait a bit before retrying (GitHub API might need a moment to propagate)
-              await new Promise(resolve => setTimeout(resolve, 500));
               retries--;
+              core.info(`Label not found yet, ${retries} retries remaining...`);
             }
             
             if (!labelFound) {
-              throw new Error('triage/needs-triage label not found on issue after adding it');
+              throw new Error('triage/needs-triage label was not found after multiple attempts');
             }
 
       - name: AI Issue Assessment
