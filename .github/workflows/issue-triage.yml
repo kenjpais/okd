@@ -24,22 +24,57 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Add triage label to issues
+      - name: Ensure triage label exists
         uses: actions/github-script@v7
         with:
           script: |
-            const issue = context.payload.issue;
-            const labels = issue.labels.map(l => l.name);
+            const issueNumber = context.payload.issue.number;
             
-            // Add triage/needs-triage if it doesn't already exist
+            // Fetch current issue state to get latest labels
+            const { data: currentIssue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+            });
+            
+            const currentLabels = currentIssue.labels.map(l => l.name);
+            
+            // Always ensure triage/needs-triage label exists (idempotent operation)
             // This ensures the AI assessment can run for opened, edited, and reopened issues
-            if (!labels.includes('triage/needs-triage')) {
+            if (!currentLabels.includes('triage/needs-triage')) {
               await github.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: issue.number,
+                issue_number: issueNumber,
                 labels: ['triage/needs-triage']
               });
+            }
+            
+            // Verify the label is present by fetching the issue again
+            // This ensures GitHub API has propagated the label before the next step
+            let retries = 3;
+            let labelFound = false;
+            
+            while (retries > 0 && !labelFound) {
+              const { data: verifiedIssue } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+              });
+              
+              const verifiedLabels = verifiedIssue.labels.map(l => l.name);
+              if (verifiedLabels.includes('triage/needs-triage')) {
+                labelFound = true;
+                break;
+              }
+              
+              // Wait a bit before retrying (GitHub API might need a moment to propagate)
+              await new Promise(resolve => setTimeout(resolve, 500));
+              retries--;
+            }
+            
+            if (!labelFound) {
+              throw new Error('triage/needs-triage label not found on issue after adding it');
             }
 
       - name: AI Issue Assessment
