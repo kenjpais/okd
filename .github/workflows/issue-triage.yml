@@ -17,8 +17,6 @@ permissions:
 
 jobs:
   ai-triage:
-    # Run only if the specific trigger label was added
-    if: github.event.label.name == 'triage/needs-triage'
     runs-on: ubuntu-latest
     outputs:
       triage_result: ${{ steps.set-output.outputs.triage_result }}
