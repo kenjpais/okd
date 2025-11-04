@@ -134,6 +134,7 @@ jobs:
         id: ai-assessment
         if: steps.final-verify.outcome == 'success' && steps.final-verify.outputs.label_confirmed == 'true'
         uses: github/ai-assessment-comment-labeler@v1.0.1
+        continue-on-error: false
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           issue_number: ${{ github.event.issue.number }}
