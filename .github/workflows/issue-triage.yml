@@ -23,7 +23,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # --- NEW STEP TO ENSURE THE TRIGGER LABEL IS PRESENT ---
+      # 1. Add the trigger label to the issue via API
       - name: Add AI Triage Trigger Label
         uses: actions/github-script@v7
         with:
@@ -31,7 +31,6 @@ jobs:
             const triggerLabel = 'triage/needs-triage';
             core.info(`Ensuring label '${triggerLabel}' is present before assessment.`);
             
-            // This API call adds the trigger label to the issue immediately.
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -40,6 +39,10 @@ jobs:
             });
             
             core.info(`Label '${triggerLabel}' added successfully.`);
+
+      # 2. WAIT STEP: Allow GitHub's systems to register the label change before proceeding
+      - name: Wait for GitHub API Consistency
+        run: sleep 15
 
       - name: AI Issue Assessment
         id: ai-assessment
