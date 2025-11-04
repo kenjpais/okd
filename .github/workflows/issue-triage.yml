@@ -90,11 +90,49 @@ jobs:
 
       - name: Wait for label propagation
         if: steps.ensure-label.outcome == 'success' && steps.ensure-label.outputs.label_verified == 'true'
-        run: sleep 3
+        run: sleep 15
+
+      - name: Final label verification before AI assessment
+        id: final-verify
+        if: steps.ensure-label.outcome == 'success' && steps.ensure-label.outputs.label_verified == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.payload.issue.number;
+            const maxRetries = 3;
+            let retries = 0;
+            
+            while (retries < maxRetries) {
+              // Force a fresh API call
+              const { data: issue } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                headers: {
+                  'If-None-Match': '', // Force fresh data
+                },
+              });
+              
+              const labels = issue.labels.map(l => l.name);
+              
+              if (labels.includes('triage/needs-triage')) {
+                core.info(`Final verification: Label triage/needs-triage confirmed on issue #${issueNumber}`);
+                core.setOutput('label_confirmed', 'true');
+                return;
+              }
+              
+              retries++;
+              if (retries < maxRetries) {
+                core.info(`Label not visible yet, waiting... (${retries}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+            }
+            
+            throw new Error('Label triage/needs-triage was not visible after final verification');
 
       - name: AI Issue Assessment
         id: ai-assessment
-        if: steps.ensure-label.outcome == 'success' && steps.ensure-label.outputs.label_verified == 'true'
+        if: steps.final-verify.outcome == 'success' && steps.final-verify.outputs.label_confirmed == 'true'
         uses: github/ai-assessment-comment-labeler@v1.0.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -110,7 +148,7 @@ jobs:
 
       - name: Post Assessment Summary
         id: set-output
-        if: always() && steps.ensure-label.outcome == 'success' && steps.ensure-label.outputs.label_verified == 'true'
+        if: always() && steps.final-verify.outcome == 'success' && steps.final-verify.outputs.label_confirmed == 'true'
         uses: actions/github-script@v7
         env:
           ASSESSMENT_OUTPUT: ${{ steps.ai-assessment.outputs.ai_assessments }}
