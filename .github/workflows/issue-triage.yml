@@ -37,7 +37,7 @@ jobs:
           issue_body: ${{ github.event.issue.body }}
           repo_name: ${{ github.event.repository.name }}
           owner: ${{ github.repository_owner }}
-          ai_review_label: 'triage/needs-triage'
+          ai_review_label: 'kind/bug'
           prompts_directory: './.github/prompts'
           labels_to_prompts_mapping: 'kind/bug,bug-triage.prompt.yml'
           model: 'openai/gpt-4o-mini'
