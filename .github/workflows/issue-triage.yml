@@ -17,9 +17,7 @@ permissions:
 jobs:
   ai-triage:
     # Run when issue is opened, reopened, edited, or when triage/needs-triage label is added
-    if: |
-      (github.event_name == 'issues' && github.event.action != 'labeled') ||
-      (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'triage/needs-triage')
+    if: github.event_name == 'issues' && (github.event.action == 'opened' || github.event.action == 'reopened' || github.event.action == 'edited' || (github.event.action == 'labeled' && github.event.label.name == 'triage/needs-triage'))
     runs-on: ubuntu-latest
     outputs:
       triage_result: ${{ steps.set-output.outputs.triage_result }}
