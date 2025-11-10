@@ -102,6 +102,26 @@ jobs:
               core
             );
 
+      - name: Format Message for Slack
+        id: format-slack
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          ASSESSMENT_OUTPUT: ${{ steps.ai-assessment.outputs.ai_assessments }}
+          ISSUE_NUMBER: ${{ steps.get-issue.outputs.issue_number }}
+          ISSUE_TITLE: ${{ steps.get-issue.outputs.issue_title }}
+          ISSUE_URL: ${{ steps.get-issue.outputs.issue_url }}
+        with:
+          script: |
+            const { formatAssessmentForSlack } = require('./.github/scripts/format-slack-message.js');
+            await formatAssessmentForSlack(
+              process.env.ASSESSMENT_OUTPUT,
+              process.env.ISSUE_NUMBER,
+              process.env.ISSUE_TITLE,
+              process.env.ISSUE_URL,
+              core
+            );
+
       - name: Send to Slack
         if: always()
         env:
