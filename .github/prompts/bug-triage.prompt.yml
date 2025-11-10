@@ -46,7 +46,7 @@ messages:
       Keep your response under 200 words and be specific about what's missing or unclear.
   - role: user
     content: '{{input}}'
-model: openai/gpt-4o
+model: openai/gpt-4
 modelParameters:
   max_tokens: 300
 testData: []
