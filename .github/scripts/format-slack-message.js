@@ -3,8 +3,6 @@
  * Converts GitHub markdown formatting to Slack's format
  */
 
-const { parseAssessments } = require('./format-message');
-
 /**
  * Converts markdown text to Slack-compatible formatting
  */
@@ -61,25 +59,4 @@ function formatSlackMessage(issue, assessments) {
   return message.trim();
 }
 
-/**
- * Formats the assessment output for Slack
- */
-async function formatAssessmentForSlack(assessmentOutput, issueNumber, issueTitle, issueUrl, core) {
-  const assessments = parseAssessments(assessmentOutput, core);
-
-  const issue = {
-    number: parseInt(issueNumber),
-    title: issueTitle,
-    html_url: issueUrl
-  };
-
-  const slackMessage = formatSlackMessage(issue, assessments);
-
-  // Set output for the next step
-  core.setOutput('slack_message', slackMessage);
-  core.info('Formatted message for Slack');
-
-  return slackMessage;
-}
-
-module.exports = { formatAssessmentForSlack, formatSlackMessage, convertMarkdownToSlack };
+module.exports = { formatSlackMessage, convertMarkdownToSlack };
