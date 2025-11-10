@@ -13,6 +13,7 @@ permissions:
   issues: write
   contents: read
   actions: read
+  models: read
 
 jobs:
   get-issue:
