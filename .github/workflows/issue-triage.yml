@@ -1,13 +1,14 @@
 name: "Issue Triage"
-run-name: "AI Triage for Issue #${{ github.event.issue.number }}"
+run-name: "AI Triage for Recent Issues"
 
 on:
   issues:
-    types: [labeled]
+    types: [opened, edited]
+  workflow_dispatch:
 
 concurrency:
-  group: ai-triage-${{ github.event.issue.number }}
-  cancel-in-progress: true
+  group: ai-triage-recent-issues
+  cancel-in-progress: false
 
 permissions:
   issues: write
@@ -15,22 +16,50 @@ permissions:
   contents: read
 
 jobs:
-  ai-triage:
+  get-recent-issues:
     runs-on: ubuntu-latest
     outputs:
-      triage_result: ${{ steps.set-output.outputs.triage_result }}
+      issue_numbers: ${{ steps.get-issues.outputs.issue_numbers }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Get Recent Issues
+        id: get-issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { getIssuesToTriage } = require('./.github/scripts/get-issues.js');
+            await getIssuesToTriage(github, context, core);
+
+  triage-issues:
+    needs: [get-recent-issues]
+    if: needs.get-recent-issues.outputs.issue_numbers != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        issue_number: ${{ fromJson(needs.get-recent-issues.outputs.issue_numbers) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: AI Issue Assessment (Consolidated Triage)
+      - name: Get Issue Details
+        id: get-issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { getIssueDetails } = require('./.github/scripts/get-issues.js');
+            await getIssueDetails(github, context, core, ${{ matrix.issue_number }});
+        
+      - name: AI Issue Assessment
         id: ai-assessment
         uses: github/ai-assessment-comment-labeler@v1.0.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          issue_number: ${{ github.event.issue.number }}
-          issue_body: ${{ github.event.issue.body }}
-          repo_name: ${{ github.event.repository.name }}
+          issue_number: ${{ steps.get-issue.outputs.issue_number }}
+          issue_body: ${{ steps.get-issue.outputs.issue_body }}
+          repo_name: ${{ steps.get-issue.outputs.repo_name }}
           owner: ${{ github.repository_owner }}
           ai_review_label: 'kind/bug' 
           prompts_directory: './.github/prompts'
@@ -38,125 +67,43 @@ jobs:
           model: 'openai/gpt-4o'
           max_tokens: 300
 
-      - name: Ensure kind/bug label persists
+      - name: Add kind/bug label
         if: always()
         uses: actions/github-script@v7
         with:
           script: |
-            const issueNumber = context.payload.issue.number;
-            const labelToPreserve = 'kind/bug';
-            
-            const triggerLabel = context.payload.label?.name;
-            const wasTriggeredByTargetLabel = triggerLabel === labelToPreserve;
-            
-            const { data: issue } = await github.rest.issues.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-            });
-            
-            const currentLabels = issue.labels.map(l => l.name);
-            
-            const wasPresentInitially = context.payload.issue?.labels?.some(
-              l => l.name === labelToPreserve
-            ) || false;
-            
-            if ((wasTriggeredByTargetLabel || wasPresentInitially) && !currentLabels.includes(labelToPreserve)) {
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issueNumber,
-                labels: [labelToPreserve],
-              });
-              core.info(`Re-added ${labelToPreserve} label to issue #${issueNumber} (was removed by AI action)`);
-            } else if (currentLabels.includes(labelToPreserve)) {
-              core.info(`${labelToPreserve} label already present on issue #${issueNumber}`);
-            } else {
-              core.info(`${labelToPreserve} label not present and not required for this issue`);
-            }
+            const { addLabel } = require('./.github/scripts/add-label.js');
+            await addLabel(github, context, core, ${{ steps.get-issue.outputs.issue_number }});
 
-      - name: Post Assessment Summary
-        id: set-output
+      - name: Process Assessments
+        id: process-assessments
         if: always()
         uses: actions/github-script@v7
         env:
           ASSESSMENT_OUTPUT: ${{ steps.ai-assessment.outputs.ai_assessments }} 
         with:
           script: |
-            let assessments = [];
-            try {
-              const output = process.env.ASSESSMENT_OUTPUT || '[]';
-              assessments = JSON.parse(output); 
-            } catch (e) {
-              core.warning(`Failed to parse assessment output: ${e.message}`);
-              assessments = [];
-            }
-            
-            if (assessments.length === 0) {
-              core.setOutput('triage_result', 'No triage assessment available');
-              return;
-            }
-            
-            let summary = '## AI Triage Assessment for OKD\n\n**Project:** OKD - The Community Distribution of Kubernetes\n\n';
-            let triageText = '';
-            
-            for (const assessment of assessments) {
-              summary += `### ${assessment.prompt}\n**Label Applied:** \`${assessment.assessmentLabel}\`\n\n**Assessment:**\n${assessment.response}\n\n---\n\n`;
-              triageText += `*${assessment.assessmentLabel}*\n${assessment.response}\n\n`;
-            }
-            
-            summary += '\n*This assessment was generated using AI to help maintain issue quality in the OKD project.*\n';
-            core.summary.addRaw(summary);
-            await core.summary.write();
-            core.setOutput('triage_result', triageText.replace(/\n/g, '\\n'));
+            const { processAssessments } = require('./.github/scripts/process-assessments.js');
+            await processAssessments(process.env.ASSESSMENT_OUTPUT, context, core);
 
-  notify-slack:
-    if: always()
-    runs-on: ubuntu-latest
-    needs: [ai-triage]
-    steps:
       - name: Send to Slack
-        if: env.SLACK_WEBHOOK_URL != ''
+        if: always() && env.SLACK_WEBHOOK_URL != ''
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          TRIAGE_RESULT: ${{ needs.ai-triage.outputs.triage_result }}
+          ASSESSMENT_OUTPUT: ${{ steps.ai-assessment.outputs.ai_assessments }}
+          ISSUE_NUMBER: ${{ steps.get-issue.outputs.issue_number }}
+          ISSUE_TITLE: ${{ steps.get-issue.outputs.issue_title }}
+          ISSUE_URL: ${{ steps.get-issue.outputs.issue_url }}
         uses: actions/github-script@v7
+        continue-on-error: true
         with:
           script: |
-            const labels = context.payload.issue.labels?.map(l => l.name).join(',') || 'None';
-            const triage = (process.env.TRIAGE_RESULT || '').replace(/\\n/g, '\n');
-            
-            const payload = {
-              text: "*New OKD Issue Created*",
-              blocks: [
-                {
-                  type: "header",
-                  text: { type: "plain_text", text: `New OKD Issue #${context.payload.issue.number}` }
-                },
-                {
-                  type: "section",
-                  fields: [
-                    { type: "mrkdwn", text: `*Title:*\n${context.payload.issue.title}` },
-                    { type: "mrkdwn", text: `*Author:*\n${context.payload.issue.user.login}` },
-                    { type: "mrkdwn", text: `*Labels:*\n${labels}` },
-                    { type: "mrkdwn", text: `*Repository:*\n${context.repo.owner}/${context.repo.repo}` }
-                  ]
-                },
-                {
-                  type: "section",
-                  text: { type: "mrkdwn", text: `<${context.payload.issue.html_url}|View Issue on GitHub>` }
-                },
-                { type: "divider" },
-                {
-                  type: "section",
-                  text: { type: "mrkdwn", text: `*AI Triage Assessment:*\n${triage}` }
-                }
-              ]
-            };
-            
-            await fetch(process.env.SLACK_WEBHOOK_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            }).catch(err => core.warning(`Slack notification failed: ${err.message}`));
-        continue-on-error: true
+            const { sendSlackMessage } = require('./.github/scripts/send-slack-message.js');
+            await sendSlackMessage(
+              process.env.ISSUE_NUMBER,
+              process.env.ISSUE_TITLE,
+              process.env.ISSUE_URL,
+              process.env.ASSESSMENT_OUTPUT,
+              process.env.SLACK_WEBHOOK_URL,
+              core
+            );

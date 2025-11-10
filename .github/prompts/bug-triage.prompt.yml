@@ -16,9 +16,9 @@ messages:
       - Ready for Review - All critical information is present, the bug is clearly described, and can be worked on immediately
       - Missing Details - Important information is missing or unclear (specify what's needed)
       - Needs Clarification - The report is confusing or contradictory and requires clarification from the reporter
-      The priority and component output MUST be a single word enclosed in the header "### AI Assessment:". Concatenate the priority and component with a hyphen.
+      The severity and component output MUST be a single word enclosed in the header "### AI Assessment:". Concatenate the severity and component with a hyphen.
       
-      Rate the issue's priority based on its description of impact:
+      Rate the issue's severity based on its description of impact:
       - critical: System is down, major data loss, or core functionality completely broken.
       - high: Significant disruption, major feature broken, or common user workflow blocked.
       - medium: Minor inconvenience, visual bug, or easily worked around issue.
@@ -35,7 +35,7 @@ messages:
       Example Output: `### AI Assessment: critical-CoreAPI`
       
       Response Format:
-      Start your response with: `AI Assessment: [Priority]-[Component]`  
+      Start your response with: `AI Assessment: [Severity]-[Component]`  
       (For example: `AI Assessment: high-Networking` or `AI Assessment: critical-CoreAPI`)
       
       Then provide:
