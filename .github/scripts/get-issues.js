@@ -3,21 +3,16 @@
  */
 
 /**
- * Gets issues to triage, filtering for kind/bug label
+ * Gets issues to triage
  */
 async function getIssuesToTriage(github, context, core) {
   let issues;
-  
+
   if (context.eventName === 'issues' && context.payload.issue) {
-    // Only process if issue has kind/bug label (required for AI assessment)
-    if (context.payload.issue.labels?.some(l => l.name === 'kind/bug')) {
-      issues = [context.payload.issue];
-    } else {
-      issues = [];
-      core.info('Issue does not have kind/bug label, skipping triage');
-    }
+    // Process the triggered issue
+    issues = [context.payload.issue];
   } else {
-    // For workflow_dispatch, get recent issues and filter for kind/bug label
+    // For workflow_dispatch, get recent issues
     const { data: allIssues } = await github.rest.issues.listForRepo({
       owner: context.repo.owner,
       repo: context.repo.repo,
@@ -26,20 +21,18 @@ async function getIssuesToTriage(github, context, core) {
       direction: 'desc',
       per_page: 2,
     });
-    
-    // Filter out pull requests and filter for kind/bug label
-    issues = allIssues
-      .filter(issue => !issue.pull_request)
-      .filter(issue => issue.labels?.some(l => l.name === 'kind/bug'));
+
+    // Filter out pull requests
+    issues = allIssues.filter(issue => !issue.pull_request);
   }
-  
+
   if (issues.length === 0) {
-    core.info('No issues with kind/bug label found to triage');
+    core.info('No issues found to triage');
     core.setOutput('issue_numbers', '[]');
   } else {
     const issueNumbers = issues.map(issue => issue.number);
     core.setOutput('issue_numbers', JSON.stringify(issueNumbers));
-    core.info(`Processing ${issueNumbers.length} issue(s) with kind/bug label: ${issueNumbers.join(', ')}`);
+    core.info(`Processing ${issueNumbers.length} issue(s): ${issueNumbers.join(', ')}`);
   }
 }
 
