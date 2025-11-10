@@ -14,6 +14,7 @@ concurrency:
 permissions:
   issues: write
   contents: read
+  actions: read
 
 jobs:
   get-recent-issues:
@@ -59,5 +60,4 @@ jobs:
     with:
       issue_numbers: ${{ needs.get-recent-issues.outputs.issue_numbers }}
     secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
