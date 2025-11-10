@@ -96,7 +96,7 @@ jobs:
             );
 
       - name: Send to Slack
-        if: always() && env.SLACK_WEBHOOK_URL != ''
+        if: always()
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           ASSESSMENT_OUTPUT: ${{ steps.ai-assessment.outputs.ai_assessments }}
