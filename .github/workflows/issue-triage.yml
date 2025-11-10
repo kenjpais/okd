@@ -33,6 +33,9 @@ jobs:
             const { getIssuesToTriage } = require('./.github/scripts/get-issues.js');
             try {
               await getIssuesToTriage(github, context, core);
+              // Debug: log the output value
+              const output = core.getOutput('issue_numbers');
+              core.info(`Issue numbers output: "${output}"`);
             } catch (error) {
               core.setOutput('issue_numbers', '[]');
               core.error(`Error getting issues: ${error.message}`);
