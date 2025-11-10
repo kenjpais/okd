@@ -18,14 +18,13 @@ on:
         type: string
         default: ''
     secrets:
-      GITHUB_TOKEN:
-        required: true
       SLACK_WEBHOOK_URL:
         required: false
 
 permissions:
   issues: write
   contents: read
+  actions: read
 
 jobs:
   triage-issues:
