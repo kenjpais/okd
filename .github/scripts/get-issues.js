@@ -1,48 +1,14 @@
 /**
- * Issue-related utilities: getting issues to triage and issue details
+ * Issue-related utilities: getting issue details
  */
-
-/**
- * Gets issues to triage
- */
-async function getIssuesToTriage(github, context, core) {
-  let issues;
-
-  if (context.eventName === 'issues' && context.payload.issue) {
-    // Process the triggered issue
-    issues = [context.payload.issue];
-  } else {
-    // For workflow_dispatch, get recent issues
-    const { data: allIssues } = await github.rest.issues.listForRepo({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      state: 'open',
-      sort: 'created',
-      direction: 'desc',
-      per_page: 2,
-    });
-
-    // Filter out pull requests
-    issues = allIssues.filter(issue => !issue.pull_request);
-  }
-
-  if (issues.length === 0) {
-    core.info('No issues found to triage');
-    core.setOutput('issue_numbers', '[]');
-  } else {
-    const issueNumbers = issues.map(issue => issue.number);
-    core.setOutput('issue_numbers', JSON.stringify(issueNumbers));
-    core.info(`Processing ${issueNumbers.length} issue(s): ${issueNumbers.join(', ')}`);
-  }
-}
 
 /**
  * Gets issue details and sets outputs
  */
-async function getIssueDetails(github, context, core, issueNumber) {
+async function getIssueDetails(github, context, core, issueNumber, owner, repo) {
   const { data: issue } = await github.rest.issues.get({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
+    owner: owner,
+    repo: repo,
     issue_number: issueNumber,
   });
   
@@ -50,11 +16,8 @@ async function getIssueDetails(github, context, core, issueNumber) {
   core.setOutput('issue_title', issue.title);
   core.setOutput('issue_body', issue.body || '');
   core.setOutput('issue_url', issue.html_url);
-  
-  // Extract repo name for ai-assessment action
-  const repoName = context.payload.repository?.name || context.repo.repo;
-  core.setOutput('repo_name', repoName);
+  core.setOutput('repo_name', repo);
 }
 
-module.exports = { getIssuesToTriage, getIssueDetails };
+module.exports = { getIssueDetails };
 
