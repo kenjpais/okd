@@ -61,9 +61,6 @@ async function getIssueDetails(github, context, core, issueNumber) {
   // Extract repo name for ai-assessment action
   const repoName = context.payload.repository?.name || context.repo.repo;
   core.setOutput('repo_name', repoName);
-  
-  // Update context for other steps
-  context.payload.issue = issue;
 }
 
 module.exports = { getIssuesToTriage, getIssueDetails };

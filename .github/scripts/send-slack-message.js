@@ -4,7 +4,7 @@
 
 const { formatMessage, parseAssessments } = require('./format-message');
 
-module.exports = async function sendSlackMessage(issueNumber, issueTitle, issueUrl, assessmentsJson, webhookUrl, core) {
+async function sendSlackMessage(issueNumber, issueTitle, issueUrl, assessmentsJson, webhookUrl, core) {
   if (!webhookUrl) {
     core.warning('No Slack webhook URL provided, skipping notification');
     return;
@@ -42,5 +42,7 @@ module.exports = async function sendSlackMessage(issueNumber, issueTitle, issueU
     core.warning(`Slack notification failed: ${err.message}`);
     throw err;
   }
-};
+}
+
+module.exports = { sendSlackMessage };
 
