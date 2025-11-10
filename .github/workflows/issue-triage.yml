@@ -1,14 +1,11 @@
-name: "Manual Issue Triage"
-run-name: "AI Triage for Recent Issues (Manual)"
+name: "Triage Recent Issues"
+run-name: "AI Triage for 2 Most Recent Issues"
 
 on:
+  schedule:
+    # Run every day at 9:00 AM UTC
+    - cron: '0 9 * * *'
   workflow_dispatch:
-    inputs:
-      num_issues:
-        description: 'Number of recent issues to triage'
-        required: false
-        default: '2'
-        type: string
 
 concurrency:
   group: ai-triage-manual
@@ -30,11 +27,9 @@ jobs:
       - name: Get Recent Issues
         id: get-issues
         uses: actions/github-script@v7
-        env:
-          NUM_ISSUES: ${{ inputs.num_issues }}
         with:
           script: |
-            const numIssues = parseInt(process.env.NUM_ISSUES) || 2;
+            const numIssues = 2;
 
             const { data: allIssues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,

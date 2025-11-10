@@ -3,7 +3,7 @@ run-name: "AI Triage for Issue #${{ github.event.issue.number }}"
 
 on:
   issues:
-    types: [opened]
+    types: [opened, edited]
 
 concurrency:
   group: ai-triage-issue-${{ github.event.issue.number }}
