@@ -19,7 +19,7 @@ jobs:
   get-recent-issues:
     runs-on: ubuntu-latest
     outputs:
-      issue_numbers: ${{ steps.get-issues.outputs.issue_numbers }}
+      issue_numbers: ${{ steps.get-issues.outputs.issue_numbers || '[]' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,19 +27,26 @@ jobs:
       - name: Get Recent Issues
         id: get-issues
         uses: actions/github-script@v7
+        continue-on-error: false
         with:
           script: |
             const { getIssuesToTriage } = require('./.github/scripts/get-issues.js');
-            await getIssuesToTriage(github, context, core);
+            try {
+              await getIssuesToTriage(github, context, core);
+            } catch (error) {
+              core.setOutput('issue_numbers', '[]');
+              core.error(`Error getting issues: ${error.message}`);
+              throw error;
+            }
 
   triage-issues:
     needs: [get-recent-issues]
-    if: needs.get-recent-issues.outputs.issue_numbers != '[]'
+    if: needs.get-recent-issues.outputs.issue_numbers != '[]' && needs.get-recent-issues.outputs.issue_numbers != ''
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        issue_number: ${{ fromJson(needs.get-recent-issues.outputs.issue_numbers) }}
+        issue_number: ${{ fromJson(needs.get-recent-issues.outputs.issue_numbers || '[]') }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
