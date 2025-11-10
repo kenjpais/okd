@@ -4,10 +4,19 @@
 
 const { formatMessage, parseAssessments } = require('./format-message');
 
-module.exports = async function processAssessments(assessmentOutput, context, core) {
+async function processAssessments(assessmentOutput, issueNumber, issueTitle, issueUrl, core) {
   const assessments = parseAssessments(assessmentOutput, core);
-  const message = formatMessage(context.payload.issue, assessments);
+  
+  const issue = {
+    number: parseInt(issueNumber),
+    title: issueTitle,
+    html_url: issueUrl
+  };
+  
+  const message = formatMessage(issue, assessments);
   core.summary.addRaw(message);
   await core.summary.write();
-};
+}
+
+module.exports = { processAssessments };
 
