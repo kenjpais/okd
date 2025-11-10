@@ -1,18 +1,21 @@
-name: "Issue Triage"
-run-name: "AI Triage for Recent Issues"
+name: "Manual Issue Triage"
+run-name: "AI Triage for Recent Issues (Manual)"
 
 on:
-  issues:
-    types: [opened, edited]
   workflow_dispatch:
+    inputs:
+      num_issues:
+        description: 'Number of recent issues to triage'
+        required: false
+        default: '2'
+        type: string
 
 concurrency:
-  group: ai-triage-recent-issues
+  group: ai-triage-manual
   cancel-in-progress: false
 
 permissions:
   issues: write
-  models: read
   contents: read
 
 jobs:
@@ -23,123 +26,43 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Get Recent Issues
         id: get-issues
         uses: actions/github-script@v7
-        continue-on-error: false
+        env:
+          NUM_ISSUES: ${{ inputs.num_issues }}
         with:
           script: |
-            const { getIssuesToTriage } = require('./.github/scripts/get-issues.js');
-            try {
-              await getIssuesToTriage(github, context, core);
-            } catch (error) {
+            const numIssues = parseInt(process.env.NUM_ISSUES) || 2;
+
+            const { data: allIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              sort: 'created',
+              direction: 'desc',
+              per_page: numIssues,
+            });
+
+            // Filter out pull requests
+            const issues = allIssues.filter(issue => !issue.pull_request);
+
+            if (issues.length === 0) {
+              core.info('No issues found to triage');
               core.setOutput('issue_numbers', '[]');
-              core.error(`Error getting issues: ${error.message}`);
-              throw error;
+            } else {
+              const issueNumbers = issues.map(issue => issue.number);
+              core.setOutput('issue_numbers', JSON.stringify(issueNumbers));
+              core.info(`Processing ${issueNumbers.length} issue(s): ${issueNumbers.join(', ')}`);
             }
 
-  triage-issues:
+  triage:
     needs: [get-recent-issues]
     if: needs.get-recent-issues.outputs.issue_numbers != '[]' && needs.get-recent-issues.outputs.issue_numbers != ''
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        issue_number: ${{ fromJson(needs.get-recent-issues.outputs.issue_numbers || '[]') }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Get Issue Details
-        id: get-issue
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { getIssueDetails } = require('./.github/scripts/get-issues.js');
-            await getIssueDetails(github, context, core, ${{ matrix.issue_number }});
-        
-      - name: AI Issue Assessment
-        id: ai-assessment
-        uses: github/ai-assessment-comment-labeler@v1.0.1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          issue_number: ${{ steps.get-issue.outputs.issue_number }}
-          issue_body: ${{ steps.get-issue.outputs.issue_body }}
-          repo_name: ${{ steps.get-issue.outputs.repo_name }}
-          owner: ${{ github.repository_owner }}
-          ai_review_label: 'kind/bug' 
-          prompts_directory: './.github/prompts'
-          labels_to_prompts_mapping: 'kind/bug,bug-triage.prompt.yml'
-          model: 'openai/gpt-4o'
-          max_tokens: 300
-
-      - name: Add kind/bug label
-        if: always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { addLabel } = require('./.github/scripts/add-label.js');
-            await addLabel(github, context, core, ${{ steps.get-issue.outputs.issue_number }});
-
-      - name: Process Assessments
-        id: process-assessments
-        if: always()
-        uses: actions/github-script@v7
-        env:
-          ASSESSMENT_OUTPUT: ${{ steps.ai-assessment.outputs.ai_assessments }}
-          ISSUE_NUMBER: ${{ steps.get-issue.outputs.issue_number }}
-          ISSUE_TITLE: ${{ steps.get-issue.outputs.issue_title }}
-          ISSUE_URL: ${{ steps.get-issue.outputs.issue_url }}
-        with:
-          script: |
-            const { processAssessments } = require('./.github/scripts/process-assessments.js');
-            await processAssessments(
-              process.env.ASSESSMENT_OUTPUT,
-              process.env.ISSUE_NUMBER,
-              process.env.ISSUE_TITLE,
-              process.env.ISSUE_URL,
-              core
-            );
-
-      - name: Format Message for Slack
-        id: format-slack
-        if: always()
-        uses: actions/github-script@v7
-        env:
-          ASSESSMENT_OUTPUT: ${{ steps.ai-assessment.outputs.ai_assessments }}
-          ISSUE_NUMBER: ${{ steps.get-issue.outputs.issue_number }}
-          ISSUE_TITLE: ${{ steps.get-issue.outputs.issue_title }}
-          ISSUE_URL: ${{ steps.get-issue.outputs.issue_url }}
-        with:
-          script: |
-            const { formatAssessmentForSlack } = require('./.github/scripts/format-slack-message.js');
-            await formatAssessmentForSlack(
-              process.env.ASSESSMENT_OUTPUT,
-              process.env.ISSUE_NUMBER,
-              process.env.ISSUE_TITLE,
-              process.env.ISSUE_URL,
-              core
-            );
-
-      - name: Send to Slack
-        if: always()
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          ASSESSMENT_OUTPUT: ${{ steps.ai-assessment.outputs.ai_assessments }}
-          ISSUE_NUMBER: ${{ steps.get-issue.outputs.issue_number }}
-          ISSUE_TITLE: ${{ steps.get-issue.outputs.issue_title }}
-          ISSUE_URL: ${{ steps.get-issue.outputs.issue_url }}
-        uses: actions/github-script@v7
-        continue-on-error: true
-        with:
-          script: |
-            const { sendSlackMessage } = require('./.github/scripts/send-slack-message.js');
-            await sendSlackMessage(
-              process.env.ISSUE_NUMBER,
-              process.env.ISSUE_TITLE,
-              process.env.ISSUE_URL,
-              process.env.ASSESSMENT_OUTPUT,
-              process.env.SLACK_WEBHOOK_URL,
-              core
-            );
+    uses: ./.github/workflows/triage-issue-reusable.yml
+    with:
+      issue_numbers: ${{ needs.get-recent-issues.outputs.issue_numbers }}
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

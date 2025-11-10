@@ -1,0 +1,34 @@
+name: "Triage New Issue"
+run-name: "AI Triage for Issue #${{ github.event.issue.number }}"
+
+on:
+  issues:
+    types: [opened]
+
+concurrency:
+  group: ai-triage-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  get-issue:
+    runs-on: ubuntu-latest
+    outputs:
+      issue_numbers: ${{ steps.set-issue.outputs.issue_numbers }}
+    steps:
+      - name: Set Issue Number
+        id: set-issue
+        run: |
+          echo "issue_numbers=[\"${{ github.event.issue.number }}\"]" >> $GITHUB_OUTPUT
+
+  triage:
+    needs: [get-issue]
+    uses: ./.github/workflows/triage-issue-reusable.yml
+    with:
+      issue_numbers: ${{ needs.get-issue.outputs.issue_numbers }}
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
