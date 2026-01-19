@@ -23,35 +23,44 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup GitHub MCP Server
+      - name: Load and Prepare Prompt
+        id: load-prompt
         run: |
-          mkdir -p .gemini
-          cat > .gemini/settings.json << 'EOF'
+          # Load the prompt file
+          PROMPT=$(cat .github/prompts/duplicate-check.prompt.txt)
+          # Replace GitHub template variables with actual values
+          PROMPT=$(echo "$PROMPT" | sed "s|\${{ github.repository }}|${{ github.repository }}|g")
+          PROMPT=$(echo "$PROMPT" | sed "s|\${{ github.event.issue.number }}|${{ github.event.issue.number }}|g")
+          # Output the prompt for use in next step
           {
-            "mcpServers": {
-              "github": {
-                "command": "npx",
-                "args": [
-                  "-y",
-                  "@modelcontextprotocol/server-github"
-                ],
-                "env": {
-                  "GITHUB_PERSONAL_ACCESS_TOKEN": "${{ secrets.GITHUB_TOKEN }}"
-                }
-              }
-            }
-          }
-          EOF
+            echo 'prompt<<EOF'
+            echo "$PROMPT"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
 
       - name: Check for Duplicate Issues
         id: duplicate-check
         uses: google-github-actions/run-gemini-cli@v0
         continue-on-error: true
         with:
-          settings_file: .gemini/settings.json
-          prompt_file: .github/prompts/duplicate-check.prompt.txt
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          settings: |
+            {
+              "mcpServers": {
+                "github": {
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "@modelcontextprotocol/server-github"
+                  ],
+                  "env": {
+                    "GITHUB_PERSONAL_ACCESS_TOKEN": "${{ secrets.GITHUB_TOKEN }}"
+                  }
+                }
+              }
+            }
+          prompt: ${{ steps.load-prompt.outputs.prompt }}
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify Issue Still Open
@@ -79,25 +88,15 @@ jobs:
               core.info(`Issue #${issue.data.number} is closed. Skipping triage steps.`);
             }
 
-      - name: Get Issue Details
-        if: steps.verify-issue-open.outcome == 'success' && steps.verify-issue-open.outputs.is_open == 'true'
-        id: get-issue
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { getIssueDetails } = require('./.github/scripts/get-issues.js');
-            await getIssueDetails(github, context, core, context.issue.number, context.repo.owner, context.repo.repo);
-
       - name: AI Issue Assessment
-        if: steps.verify-issue-open.outcome == 'success' && steps.verify-issue-open.outputs.is_open == 'true' && steps.get-issue.outcome == 'success'
+        if: steps.verify-issue-open.outcome == 'success' && steps.verify-issue-open.outputs.is_open == 'true'
         id: ai-assessment
         uses: github/ai-assessment-comment-labeler@v1.0.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          issue_number: ${{ steps.get-issue.outputs.issue_number }}
-          issue_body: ${{ steps.get-issue.outputs.issue_body }}
-          repo_name: ${{ steps.get-issue.outputs.repo_name }}
+          issue_number: ${{ steps.verify-issue-open.outputs.issue_number }}
+          issue_body: ${{ steps.verify-issue-open.outputs.issue_body }}
+          repo_name: ${{ steps.verify-issue-open.outputs.repo_name }}
           owner: ${{ github.repository_owner }}
           ai_review_label: 'kind/bug'
           prompts_directory: './.github/prompts'
@@ -105,7 +104,7 @@ jobs:
           max_tokens: 300
 
       - name: Add kind/bug label
-        if: steps.verify-issue-open.outcome == 'success' && steps.verify-issue-open.outputs.is_open == 'true' && steps.get-issue.outcome == 'success'
+        if: steps.verify-issue-open.outcome == 'success' && steps.verify-issue-open.outputs.is_open == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -116,13 +115,13 @@ jobs:
 
       - name: Process Assessments
         id: process-assessments
-        if: steps.verify-issue-open.outcome == 'success' && steps.verify-issue-open.outputs.is_open == 'true' && steps.get-issue.outcome == 'success' && steps.ai-assessment.outcome == 'success'
+        if: steps.verify-issue-open.outcome == 'success' && steps.verify-issue-open.outputs.is_open == 'true' && steps.ai-assessment.outcome == 'success'
         uses: actions/github-script@v7
         env:
           ASSESSMENT_OUTPUT: ${{ steps.ai-assessment.outputs.ai_assessments }}
-          ISSUE_NUMBER: ${{ steps.get-issue.outputs.issue_number }}
-          ISSUE_TITLE: ${{ steps.get-issue.outputs.issue_title }}
-          ISSUE_URL: ${{ steps.get-issue.outputs.issue_url }}
+          ISSUE_NUMBER: ${{ steps.verify-issue-open.outputs.issue_number }}
+          ISSUE_TITLE: ${{ steps.verify-issue-open.outputs.issue_title }}
+          ISSUE_URL: ${{ steps.verify-issue-open.outputs.issue_url }}
         with:
           script: |
             const { processAssessments } = require('./.github/scripts/process-assessments.js');
@@ -135,13 +134,13 @@ jobs:
             );
 
       - name: Send to Slack
-        if: steps.verify-issue-open.outcome == 'success' && steps.verify-issue-open.outputs.is_open == 'true' && steps.get-issue.outcome == 'success'
+        if: steps.verify-issue-open.outcome == 'success' && steps.verify-issue-open.outputs.is_open == 'true'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           ASSESSMENT_OUTPUT: ${{ steps.ai-assessment.outputs.ai_assessments || '' }}
-          ISSUE_NUMBER: ${{ steps.get-issue.outputs.issue_number }}
-          ISSUE_TITLE: ${{ steps.get-issue.outputs.issue_title }}
-          ISSUE_URL: ${{ steps.get-issue.outputs.issue_url }}
+          ISSUE_NUMBER: ${{ steps.verify-issue-open.outputs.issue_number }}
+          ISSUE_TITLE: ${{ steps.verify-issue-open.outputs.issue_title }}
+          ISSUE_URL: ${{ steps.verify-issue-open.outputs.issue_url }}
         uses: actions/github-script@v7
         continue-on-error: true
         with:
