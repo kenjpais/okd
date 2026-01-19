@@ -28,12 +28,12 @@ jobs:
         run: |
           # Load the prompt file
           PROMPT=$(cat .github/prompts/duplicate-check.prompt.txt)
-          # Replace GitHub template variables with actual values
-          # Use literal braces (no escaping) - sed treats { } as literal in basic regex
+          # Replace placeholders with actual values
+          # Using placeholders avoids GitHub Actions expanding ${{ }} in YAML before sed runs
           REPO_VALUE="${{ github.repository }}"
           ISSUE_NUM="${{ github.event.issue.number }}"
-          PROMPT=$(echo "$PROMPT" | sed "s#\${{ github.repository }}#${REPO_VALUE}#g")
-          PROMPT=$(echo "$PROMPT" | sed "s#\${{ github.event.issue.number }}#${ISSUE_NUM}#g")
+          PROMPT=$(echo "$PROMPT" | sed "s|__REPO_PLACEHOLDER__|${REPO_VALUE}|g")
+          PROMPT=$(echo "$PROMPT" | sed "s|__ISSUE_NUMBER_PLACEHOLDER__|${ISSUE_NUM}|g")
           # Output the prompt for use in next step
           {
             echo 'prompt<<EOF'
