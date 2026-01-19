@@ -29,8 +29,11 @@ jobs:
           # Load the prompt file
           PROMPT=$(cat .github/prompts/duplicate-check.prompt.txt)
           # Replace GitHub template variables with actual values
-          PROMPT=$(echo "$PROMPT" | sed "s|\${{ github.repository }}|${{ github.repository }}|g")
-          PROMPT=$(echo "$PROMPT" | sed "s|\${{ github.event.issue.number }}|${{ github.event.issue.number }}|g")
+          # Escape $ and { } for sed, use # as delimiter to avoid conflicts
+          REPO_VALUE="${{ github.repository }}"
+          ISSUE_NUM="${{ github.event.issue.number }}"
+          PROMPT=$(echo "$PROMPT" | sed "s#\$\{\{ github.repository \}\}#${REPO_VALUE}#g")
+          PROMPT=$(echo "$PROMPT" | sed "s#\$\{\{ github.event.issue.number \}\}#${ISSUE_NUM}#g")
           # Output the prompt for use in next step
           {
             echo 'prompt<<EOF'
