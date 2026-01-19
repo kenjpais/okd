@@ -82,7 +82,7 @@ jobs:
             core.setOutput('issue_body', issue.data.body || '');
             core.setOutput('issue_url', issue.data.html_url);
             core.setOutput('repo_name', context.repo.repo);
-            
+
             // If issue was closed (possibly by duplicate-check), log it
             if (!isOpen) {
               core.info(`Issue #${issue.data.number} is closed. Skipping triage steps.`);
@@ -148,14 +148,14 @@ jobs:
             const { sendSlackMessage } = require('./.github/scripts/send-slack-message.js');
             // Only send if we have a webhook URL
             if (process.env.SLACK_WEBHOOK_URL) {
-              await sendSlackMessage(
-                process.env.ISSUE_NUMBER,
-                process.env.ISSUE_TITLE,
-                process.env.ISSUE_URL,
+            await sendSlackMessage(
+              process.env.ISSUE_NUMBER,
+              process.env.ISSUE_TITLE,
+              process.env.ISSUE_URL,
                 process.env.ASSESSMENT_OUTPUT || '',
-                process.env.SLACK_WEBHOOK_URL,
-                core
-              );
+              process.env.SLACK_WEBHOOK_URL,
+              core
+            );
             } else {
               core.info('SLACK_WEBHOOK_URL not set, skipping Slack notification');
             }
