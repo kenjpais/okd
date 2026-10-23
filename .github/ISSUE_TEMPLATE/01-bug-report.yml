@@ -21,22 +21,6 @@ body:
       required: true
 
   - type: textarea
-    id: expected_behavior
-    attributes:
-      label: Expected behavior
-      description: What should have happened.
-    validations:
-      required: true
-
-  - type: textarea
-    id: actual_behavior
-    attributes:
-      label: Actual behavior
-      description: What happened (redact secrets).
-    validations:
-      required: true
-
-  - type: textarea
     id: steps_to_reproduce
     attributes:
       label: Steps to reproduce
