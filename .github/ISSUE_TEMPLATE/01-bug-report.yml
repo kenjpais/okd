@@ -4,42 +4,82 @@ projects: ["okd-project/5"]
 labels: ["kind/bug"]
 type: Bug
 body:
-    - type: markdown
-      attributes:
-        value: |
-          Before reporting an issue, check our backlog of
-          [open issues](https://github.com/okd-project/okd/issues)
-          to see if someone else has already reported it. If so, feel free to add
-          your scenario, or additional information, to the discussion. Or simply
-          "subscribe" to it to be notified when it is updated.
+  - type: markdown
+    attributes:
+      value: |
+        Search [open](https://github.com/okd-project/okd/issues) and [recently closed](https://github.com/okd-project/okd/issues?q=is%3Aissue+is%3Aclosed) issues first.
+        Troubleshooting / features: [Discussions](https://github.com/orgs/okd-project/discussions).
+        Security vulnerabilities: [Security Team](https://access.redhat.com/site/security/team/contact/) (do not file here).
+        Do not include tokens, passwords, private URLs, or personal data.
 
-          If you suspect your issue is a bug, please edit your issue description to
-          include the BUG REPORT INFORMATION shown below. If you fail to provide this
-          information within 14 days, we cannot debug your issue and will close it. We
-          will, however, reopen it if you later provide the information.
-    - type: textarea
-      attributes:
-        label: "Describe the bug"
-        description: "Briefly describe the problem you are having in a few paragraphs."
-        #placeholder: ""
-      validations:
-        required: true
-    - type: input
-      attributes:
-        label: "Version"
-        description: |
-          Please specify OKD version release: e.g. 4.4.0-0.okd-2020-04-17-201241
-          Please specify if its IPI or UPI install method and the cloud platform (if applicable) used
-    - type: input
-      attributes:
-        label: "Reproducibility"  
-        description: "Please specify how often the issue is reproducible - 100%, rare, 50% of requests etc."
-    
-    - type: textarea
-      attributes:
-        label: "Log Bundle"
-        description: |
-          A link to bootstrap log bundle or `oc adm must-gather` archive.
-          See https://docs.okd.io/latest/installing/installing-troubleshooting.html for installation
-          issues and https://docs.okd.io/latest/support/gathering-cluster-data.html to gather info
-          about installed cluster.
+  - type: textarea
+    id: problem_summary
+    attributes:
+      label: Problem summary
+      description: User-visible problem and scope.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected behavior
+      description: What should have happened.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual_behavior
+    attributes:
+      label: Actual behavior
+      description: What happened (redact secrets).
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Ordered steps others can follow, or why it is not reproducible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OKD version, install method (IPI/UPI), platform, and how often it reproduces.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Redacted logs/snippets, a safe log-bundle link, or `No logs available` plus a short reason.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: searched_existing
+    attributes:
+      label: Existing-issue search
+      options:
+        - label: I searched open and recently closed issues and did not find a duplicate that covers this report.
+          required: true
+
+  - type: checkboxes
+    id: sensitive_data_removed
+    attributes:
+      label: Sensitive-data confirmation
+      options:
+        - label: I removed tokens, passwords, private URLs, personal data, and security-vulnerability detail from this report.
+          required: true
+
+  - type: checkboxes
+    id: accuracy
+    attributes:
+      label: Accuracy
+      options:
+        - label: The information in this report is accurate to the best of my knowledge.
+          required: true

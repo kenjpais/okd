@@ -1,0 +1,35 @@
+name: Issue intake validation
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  validate:
+    name: Validate bug report form
+    runs-on: ubuntu-latest
+    if: contains(join(github.event.issue.labels.*.name, ','), 'kind/bug')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse issue body
+        id: parse
+        uses: issue-ops/parser@v5.0.0
+        with:
+          body: ${{ github.event.issue.body }}
+          issue-form-template: 01-bug-report.yml
+          workspace: ${{ github.workspace }}
+
+      - name: Validate issue
+        id: validate
+        uses: issue-ops/validator@v4.0.0
+        with:
+          issue-form-template: 01-bug-report.yml
+          parsed-issue-body: ${{ steps.parse.outputs.json }}
+          workspace: ${{ github.workspace }}
+          add-comment: "true"
